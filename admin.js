@@ -3,7 +3,7 @@
 const DEFAULT_API='https://script.google.com/macros/s/AKfycby1cJdMIYu25s6ogBSwW0tVeAraqZONAXlUytspxE2GT5N41ZCgPzgW77r-8OACJ4ZM/exec';
 // The admin endpoint can be tested and updated independently without editing code.
 const storedApiUrl=localStorage.getItem('milo_admin_api_url');
-const mobileApiVersion='milo_admin_mobile_20261114_accounts_v3';
+const mobileApiVersion='milo_admin_mobile_20261114_accounts_v4';
 if(localStorage.getItem('milo_admin_api_version')!==mobileApiVersion){localStorage.setItem('milo_admin_api_url',DEFAULT_API);localStorage.setItem('milo_admin_api_version',mobileApiVersion);}
 // The operator provided this deployment URL. Drop stale URL values from prior builds.
 // A different URL can still be entered using the diagnostic connection settings.
@@ -67,7 +67,7 @@ async function testAdminConnection(){
   if(!response.ok)throw Error('استجابة الخادم HTTP '+response.status);
   let data;try{data=await response.json()}catch(e){throw Error('الرد غير قابل للقراءة. تأكد من رابط /exec وصلاحيات النشر.');}
   if(data.ok&&data.service==='MILO_ADMIN'){
-   result.textContent='✓ اتصال ناجح بالإدارة — الإصدار '+String(data.version||'');result.style.color='#13745e';return;
+   result.textContent='✓ اتصال بالإدارة — الإصدار '+String(data.version||'')+(data.authSource==='Accounts'?' — دخول Accounts مفعّل':' — يرجى تحديث الخادم لتسجيل دخول Accounts');result.style.color='#13745e';return;
   }
   if(data.message==='طلب غير معروف'||data.error==='bad_request')
    throw Error('إصدار الخدمة غير متوافق. تواصل مع الدعم الفني.');
@@ -80,7 +80,7 @@ function showApp(){ document.querySelector('.mobile-tabs')?.classList.remove('hi
 function drawNav(){let last='';$('nav').innerHTML=sections.map(([id,name,icon,group])=>{const label=group!==last?`<div class="nav-heading">${esc(group)}</div>`:'';last=group;return label+`<button class="navitem" data-page="${id}"><span class="navicon">${icon}</span>${esc(name)}</button>`}).join('');}
 function closeNav(){document.querySelector('.side')?.classList.remove('open');$('shade').classList.add('hide');}
 function renderIntro(title,desc,actions=''){return `<div class="pageintro"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div><div class="actions">${actions}</div></div>`;}
-async function go(page){if(!titles[page])page='dashboard';state.page=page;document.querySelectorAll('.mobile-tabs [data-page]').forEach(b=>{b.classList.toggle('selected',b.dataset.page===page);b.setAttribute('aria-current',b.dataset.page===page?'page':'false')});if($('page'))$('page').innerHTML=window.miloSkeleton(page);state.items=[];state.type=page;closeNav();$('pageTitle').textContent=titles[page];$('crumb').textContent=titles[page];document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('page').innerHTML='<div class="panel empty">جارٍ تحميل البيانات...</div>';try{
+async function go(page){if(!titles[page])page='dashboard';state.page=page;document.querySelectorAll('.mobile-tabs [data-page]').forEach(b=>{b.classList.toggle('selected',b.dataset.page===page);b.setAttribute('aria-current',b.dataset.page===page?'page':'false')});if($('page'))$('page').innerHTML=window.miloSkeleton(page);state.items=[];state.type=page;closeNav();$('pageTitle').textContent=titles[page];$('crumb').textContent=titles[page];document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));try{
  if(page==='published')return await renderPublishedCsv();if(page==='dashboard')return await renderDashboard();if(page==='reports')return await renderReports();if(page==='database')return await renderDatabase();if(page==='devices')return await renderDevices();if(page==='orders')return await renderOrders();if(page==='products')return await renderProducts();if(page==='settings')return await renderSettings();if(page==='security')return renderSecurity();if(page==='shifts')return await renderShifts();return await renderRecords(page);
  }catch(e){$('page').innerHTML=`<div class="panel empty">${esc(e.message)}</div>`;msg(e.message,true);}}
 function stat(label,value,unit,icon){return `<div class="stat"><span class="stat-icon">${icon}</span><small>${esc(label)}</small><b>${esc(String(value))}</b> <span class="unit">${esc(unit||'')}</span></div>`;}
@@ -157,7 +157,7 @@ async function openDeviceReport(code){
 
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-device-report'))openDeviceReport(b.dataset.deviceReport);if(b.dataset.page)go(b.dataset.page);if(b.dataset.go)go(b.dataset.go);if(b.hasAttribute('data-edit-product'))productForm(state.items.find(x=>x.barcode===b.dataset.editProduct));if(b.hasAttribute('data-edit-record'))recordForm(state.type,state.items.find(x=>String(x[recordConfig[state.type].id])===b.dataset.editRecord));if(b.dataset.close)closeModal();});
 document.addEventListener('change',async e=>{const el=e.target;if(!el.matches('[data-order-id]')||!el.value)return;const before=state.items.find(x=>x.orderId===el.dataset.orderId);if(el.value==='مكتمل')return msg('إتمام الطلب وإصدار فاتورته من شاشة الكاشير فقط',true);if(before?.invoiceId)return msg('الطلب لديه فاتورة ولا يمكن تغيير حالته',true);try{el.disabled=true;await api('adminOrderStatus',{orderId:el.dataset.orderId,status:el.value});msg('تم تحديث حالة الطلب');await go('orders');}catch(err){el.disabled=false;msg(err.message,true)}});
-$('loginForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;try{applyApiUrl();}catch(err){authError(err.message);return;}const username=$('username').value.trim(),password=$('password').value;try{busy(true);authError('');const r=await api('adminLogin',{username,password});state.token=r.token;state.store=r.storeCode;state.user=r.username;state.name=r.storeName;$('password').value='';showApp();}catch(err){authError(err.message)}finally{busy(false)}};
+$('loginForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;try{applyApiUrl();}catch(err){authError(err.message);return;}const username=$('username').value.trim(),password=$('password').value;try{busy(true);authError('');const version=await api('adminVersion');if(version.authSource!=='Accounts')throw Error('خادم الإدارة يستخدم تسجيل الدخول القديم. حدّث AdminBackend.gs وانشر إصدارًا جديدًا من Apps Script.');const r=await api('adminLogin',{username,password});state.token=r.token;state.store=r.storeCode;state.user=r.username;state.name=r.storeName;$('password').value='';showApp();}catch(err){authError(err.message)}finally{busy(false)}};
 $('showPassword').onclick=()=>{$('password').type=$('password').type==='password'?'text':'password';};
 $('menu').onclick=()=>{document.querySelector('.side').classList.add('open');$('shade').classList.remove('hide')};$('shade').onclick=closeNav;
 $('refresh').onclick=()=>go(state.page);$('closeModal').onclick=closeModal;
