@@ -1,9 +1,9 @@
 'use strict';
 /* MILO administration uses its own server-issued admin session. Never accept cashier credentials. */
-const DEFAULT_API='https://script.google.com/macros/s/AKfycbycbHw-QP0POkQVKWd2eGjT5ThDwVNr3yvYOrL-jbhsIcHGZmWN6FtNzadmjcVWDQlQ/exec';
+const DEFAULT_API='https://script.google.com/macros/s/AKfycby1cJdMIYu25s6ogBSwW0tVeAraqZONAXlUytspxE2GT5N41ZCgPzgW77r-8OACJ4ZM/exec';
 // The admin endpoint can be tested and updated independently without editing code.
 const storedApiUrl=localStorage.getItem('milo_admin_api_url');
-const mobileApiVersion='milo_admin_mobile_20261114';
+const mobileApiVersion='milo_admin_mobile_20261114_newendpoint_v2';
 if(localStorage.getItem('milo_admin_api_version')!==mobileApiVersion){localStorage.setItem('milo_admin_api_url',DEFAULT_API);localStorage.setItem('milo_admin_api_version',mobileApiVersion);}
 // The operator provided this deployment URL. Drop stale URL values from prior builds.
 // A different URL can still be entered using the diagnostic connection settings.
@@ -14,7 +14,7 @@ if(API===DEFAULT_API)localStorage.setItem('milo_admin_api_url',DEFAULT_API);
 const isValidApiUrl=url=>/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:\?[^#]*)?$/.test(String(url||'').trim());
 function applyApiUrl(){
  const el=document.getElementById('adminApiUrl');const url=String(el?.value||'').trim();
- if(!isValidApiUrl(url))throw Error('أدخل رابط نشر Google Apps Script الصحيح المنتهي بـ /exec');
+ if(!isValidApiUrl(url))throw Error('تعذر إعداد الاتصال. تواصل مع الدعم الفني.');
  API=url;localStorage.setItem('milo_admin_api_url',url);return url;
 }
 
@@ -23,7 +23,7 @@ const money=v=>Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maxi
 const dateLabel=v=>{try{return new Date(v).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'})}catch{return String(v||'')}};
 const localDay=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 const state={token:'',store:'',user:'',name:'',page:'dashboard',items:[],type:'',busy:false,from:localDay(new Date(Date.now()-29*86400000)),to:localDay(new Date())};
-const sections=[['dashboard','الرئيسية','◫','عام'],['reports','الفواتير والتقارير','▤','عام'],['database','اتصال قاعدة البيانات','◎','عام'],['devices','الأجهزة وتقاريرها','▣','عام'],['products','المنتجات','▦','عام'],['orders','طلبات الزبائن','▤','عام'],['shifts','الورديات','◷','عام'],['customers','العملاء','♙','الإدارة'],['suppliers','الموردون','⬡','الإدارة'],['expenses','المصروفات','◈','الإدارة'],['employees','الموظفون','♧','الإدارة'],['purchases','المشتريات','▣','الإدارة'],['promotions','العروض','◇','الإدارة'],['returns','المرتجعات','↶','الإدارة'],['vouchers','السندات','▥','الإدارة'],['settings','الإعدادات','⚙','الإعدادات'],['security','الأمان','♙','الإعدادات']];
+const sections=[['dashboard','الرئيسية','◫','عام'],['reports','الفواتير والتقارير','▤','عام'],['database','حالة الاتصال','◎','عام'],['devices','الأجهزة وتقاريرها','▣','عام'],['products','المنتجات','▦','عام'],['orders','طلبات الزبائن','▤','عام'],['shifts','الورديات','◷','عام'],['customers','العملاء','♙','الإدارة'],['suppliers','الموردون','⬡','الإدارة'],['expenses','المصروفات','◈','الإدارة'],['employees','الموظفون','♧','الإدارة'],['purchases','المشتريات','▣','الإدارة'],['promotions','العروض','◇','الإدارة'],['returns','المرتجعات','↶','الإدارة'],['vouchers','السندات','▥','الإدارة'],['settings','الإعدادات','⚙','الإعدادات'],['security','الأمان','♙','الإعدادات']];
 const statusNames=['جديد','قيد التجهيز','جاهز للاستلام','في الطريق','مكتمل','ملغي'];
 const titles=Object.fromEntries(sections.map(x=>[x[0],x[1]]));
 const recordConfig={
@@ -45,11 +45,11 @@ async function api(action,data={}){
  try{
   const response=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},credentials:'omit',redirect:'follow',body:JSON.stringify({action,token:state.token,...data})});
   if(!response.ok)throw Error('تعذر الاتصال بالخادم');
-  let out;try{out=await response.json()}catch(_){throw Error('تعذر قراءة استجابة قاعدة البيانات. تأكد من نشر أحدث نسخة للسكربت.');}
+  let out;try{out=await response.json()}catch(_){throw Error('تعذر استلام البيانات. حاول مجددًا أو تواصل مع الدعم الفني.');}
   if(!out.ok){
    if(out.error==='admin_unauthorized')showLogin();
    if(out.error==='bad_request'&&/طلب غير معروف|عملية إدارية غير معروفة/.test(String(out.message||'')))
-    throw Error('رابط Google Apps Script لا يدعم هذا الأمر. غالبًا النشر قديم أو الرابط يشير لمشروع آخر. افتح فحص الربط من صفحة الدخول، ثم اختر إصدار جديد عند النشر.');
+    throw Error('تعذر تنفيذ الطلب. يرجى تحديث النظام أو التواصل مع الدعم الفني.');
    throw Error(out.message||'حدث خطأ');
   }
   if(status){status.textContent='متصل بقاعدة الكاشير';status.className='online';}
@@ -70,8 +70,8 @@ async function testAdminConnection(){
    result.textContent='✓ اتصال ناجح بالإدارة — الإصدار '+String(data.version||'');result.style.color='#13745e';return;
   }
   if(data.message==='طلب غير معروف'||data.error==='bad_request')
-   throw Error('الرابط يشير إلى إصدار قديم لا يتضمن أوامر الإدارة. انشر Code.gs المحدّث + AdminBackend.gs كإصدار جديد، أو الصق رابط النشر الصحيح.');
-  throw Error(data.message||'الخادم لا يؤكد تشغيل واجهة الإدارة الجديدة.');
+   throw Error('إصدار الخدمة غير متوافق. تواصل مع الدعم الفني.');
+  throw Error(data.message||'تعذر التحقق من جاهزية الخدمة.');
  }catch(err){if(result){result.textContent='✕ '+err.message;result.style.color='#b33b40';}}
  finally{if(button)button.disabled=false;}
 }
@@ -96,8 +96,8 @@ async function renderReports(){
 async function renderDatabase(){
  const r=await api('adminDbStatus');
  const cols=[['Accounts','الحسابات'],['Products','المنتجات'],['Reports','الفواتير'],['Shifts','الورديات'],['StoreSettings','إعدادات المتجر'],['CustomerOrders','طلبات العملاء'],['Customers','العملاء'],['Suppliers','الموردون'],['Expenses','المصروفات'],['Employees','الموظفون'],['Purchases','المشتريات']];
- $('page').innerHTML=renderIntro('اتصال قاعدة البيانات','اللوحة تستعلم من مشروع Apps Script نفسه الذي يستخدمه نظام الكاشير',`<button class="primary" id="refreshDb">فحص الاتصال مجددًا</button>`)
- +`<div class="panel"><h3>الاتصال بالخادم <span class="pill">ناجح</span></h3><p class="subtxt">المتجر: <b>${esc(r.storeName)}</b> · كود المتجر: <b>${esc(r.storeCode)}</b></p><p class="subtxt">آخر فحص: ${esc(dateLabel(r.checkedAt))}</p><div class="note">يتم عرض عدد السجلات الخاصة بهذا المتجر فقط. لا يتيح هذا القسم حذف أو تغيير بيانات المبيعات.</div></div>`
+ $('page').innerHTML=renderIntro('حالة الاتصال','متابعة اتصال النظام ومزامنة بيانات المتجر',`<button class="primary" id="refreshDb">فحص الاتصال مجددًا</button>`)
+ +`<div class="panel"><h3>الاتصال بالخادم <span class="pill">ناجح</span></h3><p class="subtxt">المتجر: <b>${esc(r.storeName)}</b> · كود المتجر: <b>${esc(r.storeCode)}</b></p><p class="subtxt">آخر فحص: ${esc(dateLabel(r.checkedAt))}</p><div class="note">تعرض هذه الصفحة حالة اتصال المتجر ومزامنة السجلات، دون إجراء أي تعديلات على بيانات المبيعات.</div></div>`
  +`<section class="panel"><h3>الجداول المستخدمة من الكاشير</h3>${table(['الجدول','الاسم','حالة الجدول','سجلات المتجر'],cols.map(([key,label])=>{const item=r.tables?.[key]||{};return [esc(key),esc(label),item.exists?'<span class="pill">موجود</span>':'<span class="pill gray">غير موجود</span>',esc(item.count??0)];}))}</section>`;
  $('refreshDb').onclick=()=>go('database');
 }
@@ -126,7 +126,7 @@ async function renderDevices(){
  $('page').innerHTML=renderIntro('أجهزة المتجر','الأجهزة التي ظهرت في سجلات هذا الحساب، مع فتح تقرير مستقل لكل جهاز',`<button class="secondary" id="refreshDevices">تحديث الأجهزة</button>`)
   +`<div class="section-stats"><span>الأجهزة المسجلة <b>${all.length}</b></span><span>شوهدت مؤخرًا <b>${all.filter(d=>d.connectionLabel==='شوهد مؤخرًا').length}</b></span></div>`
   +`<div class="toolbar"><input id="deviceSearch" placeholder="ابحث باسم الجهاز أو المعرّف أو المستخدم..."></div><div id="deviceList"></div>`
-  +`<div class="note">الحالة تعتمد على آخر أحداث محفوظة في قاعدة البيانات، ولا تعني إمكانية الوصول المباشر إلى الجهاز. لا تعرض الأجهزة التي لم تُسجّل أي بيانات سابقًا.</div>`;
+  +`<div class="note">الحالة مبنية على آخر نشاط مسجل، ولا تعني إمكانية الوصول المباشر إلى الجهاز. لا تعرض الأجهزة التي لم تُسجّل أي بيانات سابقًا.</div>`;
  $('deviceSearch').oninput=renderDeviceRows;$('refreshDevices').onclick=()=>go('devices');renderDeviceRows();
 }
 function renderDeviceRows(){
@@ -177,3 +177,6 @@ window.miloSkeleton=function(page){
  const rows=Array.from({length:4},()=>'<div class="sk-row">'+bar+bar+'</div>').join('');
  return '<div class="skeleton-shell" role="status" aria-live="polite" aria-label="جارٍ تحميل البيانات"><div class="sk-header">'+bar+bar+'</div><div class="sk-cards">'+cards+'</div><div class="sk-list">'+rows+'</div></div>';
 };
+
+// Technical setting is intentionally not shown to standard merchant users.
+if(new URLSearchParams(location.search).get("support")==="1")document.body.classList.add("milo-support-mode");
