@@ -1,42 +1,5 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
- <meta charset="utf-8">
- <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
- <meta name="theme-color" content="#f8faf8">
- <meta name="mobile-web-app-capable" content="yes">
- <meta name="apple-mobile-web-app-status-bar-style" content="default">
- <title>MILO ADMIN | لوحة الإدارة</title>
- <link rel="icon" href="./icons/milo-v17-192.png" type="image/png">
- <link rel="apple-touch-icon" href="./icons/milo-v17-192.png">
- <link rel="manifest" href="./manifest.webmanifest">
- <link rel="preconnect" href="https://fonts.googleapis.com">
- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
- <link rel="stylesheet" href="./styles.css?v=csv-only-20261114">
- <script src="./app.js?v=csv-only-20261114" defer></script>
-</head>
-<body>
-<div class="shell">
- <aside class="sidebar">
-  <div class="brand"><span class="brand-icon">M</span><div><strong>ميلو <em>ADMIN</em></strong><small>الإدارة الذكية</small></div></div>
-  <nav aria-label="الأقسام"><a class="nav active" href="#main"><span>◫</span>نظرة عامة</a><a class="nav" href="#data"><span>▤</span>سجل البيانات</a><a class="nav" href="#about"><span>ⓘ</span>معلومات الربط</a></nav>
-  <div class="side-note">MILO CASHIER<br><span>واجهة بيانات للقراءة فقط</span></div>
- </aside>
- <main class="content" id="main">
-  <header class="topbar"><div><span class="eyebrow">MILO BUSINESS SUITE</span><h1>لوحة إدارة ميلو</h1><p>لوحة متابعة للبيانات المنشورة، من مصدر واحد.</p></div><button id="reload" class="action primary" type="button"><span id="reloadIcon">↻</span> تحديث البيانات</button></header>
-  <section class="hero"><div><div class="hero-chip"><span class="dot"></span>تحديث مباشر للبيانات</div><h2>بيانات متجرك،<br>بوضوح وأناقة.</h2><p>استعراض السجلات والبحث فيها، بواجهة متجاوبة تناسب جوالك.</p></div><div class="hero-art"><span>M</span><div>DATA<br>VIEW</div></div></section>
-  <div id="notice" role="status" aria-live="polite" class="notice hide"></div>
-  <section class="stats" aria-label="معلومات المصدر"><article class="stat"><span>حالة مزامنة البيانات</span><strong id="status">جارٍ المزامنة</strong><small>من الرابط المحدد فقط</small></article><article class="stat"><span>السجلات التي يمكن عرضها</span><strong id="count">—</strong><small>بعد إخفاء الحقول الحساسة</small></article><article class="stat"><span>الأعمدة الظاهرة</span><strong id="columns">—</strong><small>حقول مسموح بها فقط</small></article></section>
-  <section class="card data-section" id="data">
-   <div class="section-head"><div><span class="eyebrow">LIVE DATA</span><h2>سجل البيانات</h2><p>يتم عرض البيانات المتاحة من المصدر بشكل مباشر، دون تعديلها.</p></div><button id="export" type="button" class="action secondary" disabled>تصدير المعروض</button></div>
-   <div class="tools"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="بحث في البيانات المتاحة..." aria-label="البحث في السجلات"></label><select id="field" aria-label="تحديد حقل البحث"><option value="">كل الحقول</option></select><select id="sort" aria-label="ترتيب السجلات"><option value="">الترتيب الأصلي</option></select></div>
-   <div id="tableRegion" class="datawrap"><div class="skeleton" role="status" aria-label="جارٍ تحميل البيانات"><div class="sk-head"></div><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div></div>
-   <p id="tableInfo" class="helper">يتم قراءة البيانات العامة فقط دون عرض الحقول الحساسة.</p>
-  </section>
-  <section class="privacy" id="about"><div class="privacy-icon">⌁</div><div><h2>مصدر البيانات</h2><p>تعتمد هذه النسخة على ملف CSV المنشور فقط. يمكن استعراض البيانات والبحث فيها، لكن لا يمكن إضافة أو تعديل أو حذف السجلات. يجب عدم نشر بيانات الدخول أو المعلومات الحساسة في مصدر عام.</p><a id="sourceLink" target="_blank" rel="noopener noreferrer">فحص حالة المصدر <span aria-hidden="true">↗</span></a></div></section>
-  <footer>© MILO CASHIER · MILO ADMIN</footer>
- </main>
-</div>
-</body>
-</html>
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f7f9f7"><meta name="mobile-web-app-capable" content="yes"><meta name="description" content="لوحة إدارة ميلو كاشير على الجوال"><title>MILO ADMIN | لوحة الإدارة</title><link rel="icon" href="./icons/milo-192.png"><link rel="apple-touch-icon" href="./icons/milo-192.png"><link rel="manifest" href="./manifest.webmanifest"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="./styles.css?v=20261114-secure4"><script src="./config.js?v=20261114-secure4"></script><script src="./app.js?v=20261114-secure4" defer></script></head><body>
+<section class="login-view" id="loginView"><div class="login-card"><div class="login-mark">M</div><div class="overline"><span class="live-dot"></span> MILO BUSINESS SUITE</div><h1>إدارة متجرك<br>من أي مكان.</h1><p class="muted">ادخل بحساب ميلو كاشير لعرض بيانات متجرك من جوالك.</p><form id="loginForm" autocomplete="on"><label for="username">اسم المستخدم</label><input id="username" autocomplete="username" required placeholder="اسم المستخدم" spellcheck="false"><label for="password">كلمة المرور</label><div class="pass-wrap"><input id="password" type="password" autocomplete="current-password" required placeholder="كلمة المرور"><button id="togglePass" type="button" aria-label="إظهار كلمة المرور">إظهار</button></div><button class="mainbtn" type="submit" id="loginBtn">دخول لوحة الإدارة <span>←</span></button><p id="loginError" class="error" role="alert"></p></form><div class="login-foot"><span class="dotgreen"></span> اتصال محمي · معلومات كل متجر مستقلة</div></div><aside class="login-aside"><div class="pill">MILO ADMIN</div><h2>كل ما يخص<br>متجرك في مكان واحد.</h2><p>المبيعات والمخزون والفواتير والورديات والتقارير والأجهزة والمزيد.</p><div class="scene"><div class="small-box"><span>مبيعاتك</span><strong>↗</strong></div><div class="small-box"><span>منتجاتك</span><strong>▦</strong></div><div class="small-box"><span>أجهزتك</span><strong>▣</strong></div></div></aside></section>
+<section id="appView" class="app-view hidden"><aside class="sidebar" id="sidebar"><div class="side-logo"><span class="logo-square">M</span><div><b>MILO</b><small>ADMINISTRATION</small></div></div><div class="store-box"><span>المتجر الحالي</span><strong id="sidebarStore">—</strong><small id="sidebarUser">—</small></div><nav id="sidebarNav" aria-label="أقسام المتجر"></nav><button id="logoutSide" class="logout-btn">تسجيل الخروج</button></aside><div id="backdrop" class="backdrop hidden"></div><div class="main-area"><header class="topbar"><div class="brand-heading"><button class="hamburger" id="menuBtn" aria-label="فتح القائمة">☰</button><div><span class="small-label">MILO / <span id="crumb">الرئيسية</span></span><h2 id="pageTitle">لوحة الإدارة</h2></div></div><div class="top-opts"><span id="connectionBadge" class="status-badge">متصل</span><button id="reloadBtn" class="round-btn" title="تحديث البيانات" aria-label="تحديث البيانات">↻</button></div></header><main id="mainContent" class="main-content"></main><footer>© MILO CASHIER · إدارة أعمالك بشكل أذكى</footer></div><nav class="mobile-nav" aria-label="التنقل السريع"><button data-page="dashboard" class="on"><i>⌂</i><span>الرئيسية</span></button><button data-page="Products"><i>▦</i><span>المنتجات</span></button><button data-page="Reports"><i>▤</i><span>الفواتير</span></button><button data-page="Shifts"><i>◷</i><span>الورديات</span></button><button data-menu="1"><i>☰</i><span>المزيد</span></button></nav></section>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+</body></html>

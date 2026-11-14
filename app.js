@@ -1,90 +1,61 @@
 'use strict';
-// MILO ADMIN — only data source. No Apps Script, secondary endpoints, local credentials or cookies.
-const CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRWTsbSDKAGwrI46TDK0rlwGmDy7gah_127NW-DaUzFffUFv9eK2f1X90HryjUMYU3aR8wPnK2UE_2B/pub?output=csv";
-const ALLOW_FIELDS = new Map(Object.entries({
- barcode:'الباركود',sku:'رمز المنتج',name:'الاسم',product_name:'اسم المنتج',product:'المنتج',
- category:'التصنيف',price:'السعر',sale_price:'سعر البيع',cost_price:'سعر التكلفة',
- stock:'الكمية',unit:'الوحدة',min_stock:'الحد الأدنى',description:'الوصف',image_url:'الصورة',
- store_name:'اسم المتجر',status:'الحالة',date:'التاريخ',invoice_count:'عدد الفواتير',
- sales_total:'إجمالي المبيعات',total:'الإجمالي',vat:'الضريبة',discount:'الخصم'
-}));
-// Every field must be explicitly allowlisted to avoid exposing passwords, usernames,
-// customer records, access tokens, employee details and other private columns.
-const DANGEROUS=/(pass(word)?|كلمة.?المرور|user(name)?|اسم.?المستخدم|token|secret|credential|cookie|private|auth|email|phone|جوال|هاتف|عنوان|address|owner|مالك|بريد|iban|account|حساب|api.?key|access|session|vat_number|client|customer|employee|موظف|عميل|id_number)/i;
-const byId=id=>document.getElementById(id);
+const $=id=>document.getElementById(id);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={columns:[],rows:[],sort:'',field:'',ready:false};
-function parseCsv(input){
- const text=String(input||'').replace(/^\uFEFF/,'');const rows=[];
- let row=[],cell='',quote=false;
- for(let i=0;i<text.length;i++){
-  const c=text[i];
-  if(quote){if(c==='"'&&text[i+1]==='"'){cell+='"';i++;}else if(c==='"'){quote=false;}else{cell+=c;}}
-  else if(c==='"'&&cell===''){quote=true;}
-  else if(c===','){row.push(cell);cell='';}
-  else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(x=>x.trim()!==''))rows.push(row);row=[];}
-  else{cell+=c;}
- }
- if(cell||row.length){row.push(cell);if(row.some(x=>x.trim()!==''))rows.push(row);}
- return rows;
+const SAR=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2,minimumFractionDigits:2})+' ر.س';
+const apiBase=String(window.MILO_ADMIN_API||'').replace(/\/$/,'');
+const state={token:sessionStorage.getItem('milo_admin_session')||'',name:sessionStorage.getItem('milo_admin_store')||'',user:sessionStorage.getItem('milo_admin_user')||'',profile:{},page:'dashboard',tables:[],pageNum:1,q:'',requestId:0,timer:0};
+const labels={Products:'المنتجات',Reports:'الفواتير والمبيعات',Shifts:'الورديات',Customers:'العملاء',Suppliers:'الموردون',Expenses:'المصروفات',Promotions:'العروض',Employees:'الموظفون',Returns:'المرتجعات',Purchases:'المشتريات',PurchaseItems:'تفاصيل المشتريات',Vouchers:'السندات',ReportDaily:'التقارير اليومية',DeviceActivity:'نشاط الأجهزة',DeviceStatus:'حالة الأجهزة',DeviceAlerts:'تنبيهات الأجهزة',SupportTickets:'بلاغات الدعم',CustomerOrders:'طلبات العملاء',StoreSettings:'إعدادات المتجر',DeletedRecords:'سجل الحذف'};
+const glyph={Products:'▦',Reports:'▤',Shifts:'◷',Customers:'♙',Suppliers:'⬡',Expenses:'◈',Promotions:'◇',Employees:'♧',Returns:'↶',Purchases:'▣',PurchaseItems:'≡',Vouchers:'▥',ReportDaily:'▥',DeviceActivity:'◉',DeviceStatus:'▣',DeviceAlerts:'!',SupportTickets:'⌘',CustomerOrders:'▣',StoreSettings:'⚙',DeletedRecords:'▤'};
+const pretty={invoice_id:'رقم الفاتورة',date:'التاريخ',name:'الاسم',barcode:'الباركود',price:'السعر',wholesale_price:'سعر الجملة',cost_price:'التكلفة',stock:'المخزون',category:'التصنيف',unit:'الوحدة',min_stock:'الحد الأدنى',image_url:'صورة المنتج',description:'الوصف',updated_at:'آخر تحديث',total:'الإجمالي',vat:'الضريبة',discount:'الخصم',cash:'نقدًا',card:'شبكة',cashier:'الكاشير',customer:'العميل',customer_phone:'رقم العميل',terminal:'الجهاز',service_type:'نوع الطلب',shift_id:'معرف الوردية',opened_at:'فتح الوردية',closed_at:'إغلاق الوردية',phone:'الجوال',address:'العنوان',record_id:'المعرف',amount:'المبلغ',status:'الحالة',username:'اسم المستخدم',role:'الصلاحية',device_code:'معرف الجهاز',device_name:'اسم الجهاز',last_seen:'آخر اتصال',report_date:'تاريخ التقرير'};
+function toast(s,err=false){const el=$('toast');el.textContent=s;el.style.background=err?'#8b2525':'#111715';el.classList.remove('hidden');clearTimeout(state.timer);state.timer=setTimeout(()=>el.classList.add('hidden'),4200)}
+function setConnection(text,bad=false){$('connectionBadge').textContent=text;$('connectionBadge').style.background=bad?'#fce9e7':'#e7f7ed';$('connectionBadge').style.color=bad?'#9f3333':'#09824b'}
+async function request(path,opts={}){
+ if(!apiBase.startsWith('https://') || apiBase.includes('YOUR-WORKER'))throw Error('لم يتم إعداد عنوان خدمة الإدارة في ملف config.js');
+ const headers={'Accept':'application/json',...(opts.body?{'Content-Type':'application/json'}:{}),...(state.token?{'Authorization':'Bearer '+state.token}:{})};
+ let res;try{res=await fetch(apiBase+path,{...opts,headers,cache:'no-store'})}catch{throw Error('تعذر الاتصال بخدمة الإدارة. تحقق من إعداد الاتصال والإنترنت');}
+ let data;try{data=await res.json()}catch{throw Error('استجابة الخادم غير متوقعة');}
+ if(!res.ok||!data.ok){if(res.status===401&&path!=='/api/login')logout(false);throw Error(data.message||'تعذر إكمال الطلب');}
+ return data;
 }
-function normalize(x){return String(x||'').trim().toLowerCase().replace(/[\s-]+/g,'_');}
-function notice(msg){const n=byId('notice');n.textContent=msg;n.classList.remove('hide');}
-function clearNotice(){byId('notice').classList.add('hide');byId('notice').textContent='';}
-function render(){
- const q=byId('search').value.trim().toLowerCase();const focus=state.field?state.columns.findIndex(c=>c.key===state.field):-1;let rows=state.rows.filter(row=>!q||(focus>=0?String(row[focus]??'').toLowerCase().includes(q):row.some(v=>String(v).toLowerCase().includes(q))));
- if(state.sort){const idx=state.columns.findIndex(c=>c.key===state.sort);if(idx>=0)rows=rows.slice().sort((a,b)=>String(a[idx]??'').localeCompare(String(b[idx]??''),'ar',{numeric:true}));}
- const displayed=rows.slice(0,250);
- const region=byId('tableRegion');
- if(!state.columns.length){region.innerHTML='<div class="empty">لا توجد أعمدة عامة مسموح بعرضها في هذه الورقة. إذا كان CSV يحتوي حسابات وكلمات مرور، فلا يمكن استخدامه كواجهة إدارة عامة.</div>';}
- else if(!rows.length){region.innerHTML='<div class="empty">لا توجد سجلات مطابقة للبحث.</div>';}
- else{region.innerHTML='<table class="table"><thead><tr>'+state.columns.map(c=>'<th>'+escapeHtml(c.label)+'</th>').join('')+'</tr></thead><tbody>'+displayed.map(row=>'<tr>'+row.map(v=>'<td>'+escapeHtml(String(v??'').slice(0,500))+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
- byId('tableInfo').textContent='عدد النتائج المطابقة: '+rows.length+' — يتم عرض أول '+Math.min(rows.length,250)+' صف. الحقول الحساسة لا تُعرض ولا تدخل في البحث أو التصدير.';
- byId('export').disabled=!state.ready||!displayed.length;
+function logout(showMessage=true){sessionStorage.removeItem('milo_admin_session');sessionStorage.removeItem('milo_admin_store');sessionStorage.removeItem('milo_admin_user');state.token='';state.name='';state.user='';state.requestId++;$('appView').classList.add('hidden');$('loginView').classList.remove('hidden');$('password').value='';if(showMessage)toast('تم تسجيل الخروج');}
+function signedIn(r){state.token=r.token;state.name=r.storeName||'متجر ميلو';state.user=r.username||'';state.profile=r.profile||{};sessionStorage.setItem('milo_admin_session',state.token);sessionStorage.setItem('milo_admin_store',state.name);sessionStorage.setItem('milo_admin_user',state.user);$('sidebarStore').textContent=state.name;$('sidebarUser').textContent=state.user;$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');loadMenus();go('dashboard')}
+function loadMenus(){const first=`<button data-page="dashboard" class="active"><span>⌂</span> الرئيسية</button>`;const rest=Object.entries(labels).map(([k,v],i)=>`${i===3?'<div class="nav-heading">إدارة المتجر</div>':''}<button data-page="${k}"><span>${glyph[k]}</span>${v}</button>`).join('');$('sidebarNav').innerHTML=first+rest;}
+function sideClose(){$('sidebar').classList.remove('open');$('backdrop').classList.add('hidden')}
+function markPage(page){for(const el of document.querySelectorAll('[data-page]'))el.classList.toggle('active',el.dataset.page===page),el.classList.toggle('on',el.dataset.page===page);$('crumb').textContent=page==='dashboard'?'الرئيسية':labels[page]||page;$('pageTitle').textContent=page==='dashboard'?'لوحة الإدارة':labels[page]||page;}
+function skel(mode='table'){if(mode==='overview')return `<div class="skeleton"><div class="sk sk-title"></div><div class="sk-cards">${Array(4).fill('<div class="sk sk-card"></div>').join('')}</div><div class="sk sk-box"></div></div>`;return `<div class="panel skeleton"><div class="sk sk-title"></div>${Array(6).fill('<div class="sk sk-row"></div>').join('')}</div>`;}
+function heading(title,sub,btn=''){return `<div class="page-top"><div><span class="eyebrow">MILO BUSINESS SUITE</span><h2>${escapeHtml(title)}</h2><p>${escapeHtml(sub)}</p></div>${btn}</div>`;}
+function stat(label,value,note='',theme=''){return `<div class="stat ${theme}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(note)}</small></div>`;}
+async function go(page){sideClose();state.page=page;state.q='';state.pageNum=1;markPage(page);const id=++state.requestId;$('mainContent').innerHTML=skel(page==='dashboard'?'overview':'table');setConnection('جارٍ التحديث');try{if(page==='dashboard')await dashboard(id);else await tablePage(page,id);if(id===state.requestId)setConnection('البيانات محدّثة');}catch(e){if(id===state.requestId){setConnection('تعذر التحديث',true);$('mainContent').innerHTML=heading('تعذر جلب البيانات',e.message,`<button class="action" data-page="${escapeHtml(page)}">إعادة المحاولة</button>`);toast(e.message,true)}}}
+async function dashboard(id){const r=await request('/api/overview');if(id!==state.requestId)return;const s=r.summary;const max=Math.max(1,...s.days.map(d=>Number(d.amount||0)));const graph=s.days.length?s.days.map(d=>`<div class="barcol" title="${escapeHtml(d.day)} — ${escapeHtml(SAR(d.amount))}"><div class="bar" style="height:${Math.max(2,Number(d.amount||0)/max*145)}px"></div><label>${escapeHtml(d.day.slice(5))}</label></div>`).join(''):'<div class="empty">لا توجد مبيعات مسجلة بعد</div>';
+ $('mainContent').innerHTML=heading('أهلًا بك في ميلو','تابع ملخص نشاط متجرك من مكان واحد',`<button class="action secondary" id="reloadOverview">↻ تحديث</button>`)
+ +`<div class="grid-stats">${stat('إجمالي المبيعات',SAR(s.sales),'من الفواتير المسجلة','dark')}${stat('عدد الفواتير',String(s.invoiceCount),'فاتورة محفوظة','mint')}${stat('المنتجات',String(s.productCount),'منتج في المتجر')}${stat('المخزون المنخفض',String(s.lowStock),'منتجات تحتاج مراجعة')}</div>`
+ +`<div class="section-grid"><section class="panel"><div class="panel-head"><h3>حركة المبيعات</h3><small>آخر أيام فيها مبيعات</small></div><div class="chart">${graph}</div></section><section class="panel"><div class="panel-head"><h3>ملخص حسابك</h3><small>بيانات المتجر</small></div><div class="profile-grid"><div class="profile-cell"><span>المتجر</span><b>${escapeHtml(state.name)}</b></div><div class="profile-cell"><span>المستخدم</span><b>${escapeHtml(state.user)}</b></div><div class="profile-cell"><span>أجهزة الكاشير</span><b>${s.devices}</b></div><div class="profile-cell"><span>الورديات</span><b>${s.shifts}</b></div><div class="profile-cell"><span>نقدًا</span><b>${escapeHtml(SAR(s.cash))}</b></div><div class="profile-cell"><span>شبكة</span><b>${escapeHtml(SAR(s.card))}</b></div></div></section></div>`
+ +`<div class="section-grid"><section class="panel"><div class="panel-head"><h3>الانتقال السريع</h3><small>كل أقسام متجرك</small></div><div class="quick-links">${[['Products','المنتجات'],['Reports','الفواتير'],['Shifts','الورديات'],['DeviceStatus','الأجهزة']].map(([p,t])=>`<button data-page="${p}">${t}<em>←</em></button>`).join('')}</div></section><section class="panel"><div class="panel-head"><h3>تفاصيل إضافية</h3><small>من البيانات المسجلة</small></div><table class="mini-table"><tr><td>الضريبة المسجلة</td><td>${escapeHtml(SAR(s.vat))}</td></tr><tr><td>الخصومات</td><td>${escapeHtml(SAR(s.discount))}</td></tr><tr><td>المنتجات النافدة</td><td>${s.outStock}</td></tr><tr><td>التقارير اليومية</td><td>${s.reportDailyCount}</td></tr></table></section></div>`
+ +`<div class="note" style="margin-top:18px">تعرض هذه اللوحة بيانات حساب المتجر المرتبط بتسجيل الدخول فقط. لا يتم جمع التقارير اليومية مرة ثانية مع الفواتير حتى لا تتكرر المبيعات.</div>`;
+ $('reloadOverview').onclick=()=>go('dashboard');}
+let searchTimer;
+async function tablePage(name,id){if(!labels[name])throw Error('القسم غير معروف');$('mainContent').innerHTML=heading(labels[name],'جميع سجلات متجرك — البحث والتصفح')+`<section class="panel table-panel"><div class="panel-head"><div><h3>${escapeHtml(labels[name])}</h3><small id="tableSub">يتم جلب البيانات...</small></div><button class="action secondary" id="exportBtn" disabled>تصدير CSV</button></div><div class="toolbar"><input id="tableSearch" type="search" placeholder="ابحث بالاسم أو الرقم أو التاريخ..." autocomplete="off" aria-label="بحث"><button class="action secondary" id="searchBtn">بحث</button></div><div id="tableMount">${skel()}</div><div class="table-foot"><span id="rowCount">—</span><div class="pagination"><button id="prevPage">السابق</button><span id="pageIndex">1</span><button id="nextPage">التالي</button></div></div></section>`;
+ $('tableSearch').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.q=$('tableSearch').value.trim();state.pageNum=1;loadTable(name,id)},420)};
+ $('searchBtn').onclick=()=>{clearTimeout(searchTimer);state.q=$('tableSearch').value.trim();state.pageNum=1;loadTable(name,id)};
+ $('prevPage').onclick=()=>{if(state.pageNum>1){state.pageNum--;loadTable(name,id)}};
+ $('nextPage').onclick=()=>{state.pageNum++;loadTable(name,id)};
+ await loadTable(name,id);
 }
-function downloadSafeCsv(){
- const q=byId('search').value.trim().toLowerCase();
- const focus=state.field?state.columns.findIndex(c=>c.key===state.field):-1;
- const rows=state.rows.filter(row=>!q||(focus>=0?String(row[focus]??'').toLowerCase().includes(q):row.some(v=>String(v).toLowerCase().includes(q))));
- const safeCell=v=>{const s=String(v??'');return /^[\s]*[=+@\-]/.test(s)&&!/^[\s]*-?\d+(?:\.\d+)?$/.test(s)?"'"+s:s;};
- const csv=[state.columns.map(c=>c.label),...rows].map(row=>row.map(x=>'"'+safeCell(x).replace(/"/g,'""')+'"').join(',')).join('\r\n');
- const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});const object=URL.createObjectURL(blob);
- const a=document.createElement('a');a.href=object;a.download='MILO_READONLY_PUBLIC_DATA.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(object),1000);
-}
-async function reload(){
- state.ready=false;byId('export').disabled=true;byId('reload').disabled=true;byId('status').textContent='جارٍ الاتصال';
- byId('tableRegion').innerHTML='<div class="skeleton"><div class="sk-head"></div><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div>';
- clearNotice();
- try{
-  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);
-  let res;try{res=await fetch(CSV_URL,{mode:'cors',credentials:'omit',cache:'no-store',redirect:'follow',signal:controller.signal});}finally{clearTimeout(timeout);}
-  if(!res.ok)throw Error('رمز الاستجابة '+res.status);
-  const content=await res.text();if(content.length>7*1024*1024)throw Error('حجم المصدر أكبر من حد العرض (7 MB)');
-  const table=parseCsv(content);if(table.length===0)throw Error('المصدر لا يحتوي على صفوف');
-  // The published sheet must have named headers. Fail closed on a CSV of secrets.
-  const headers=table[0];const safe=headers.map((name,i)=>({name,key:normalize(name),i})).filter(h=>ALLOW_FIELDS.has(h.key)&&!DANGEROUS.test(h.name));
-  state.columns=safe.map(h=>({key:h.key,label:ALLOW_FIELDS.get(h.key)}));
-  state.rows=table.slice(1,5001).map(row=>safe.map(h=>String(row[h.i]??'').trim()));
-  byId('field').innerHTML='<option value="">كل الحقول</option>'+state.columns.map(c=>'<option value="'+escapeHtml(c.key)+'">'+escapeHtml(c.label)+'</option>').join('');
-  byId('field').value='';state.field='';
-  state.ready=true;
-  byId('status').textContent='تم الاتصال';byId('count').textContent=String(state.rows.length);byId('columns').textContent=String(state.columns.length);
-  byId('sort').innerHTML='<option value="">الترتيب الأصلي</option>'+state.columns.map(c=>'<option value="'+escapeHtml(c.key)+'">'+escapeHtml(c.label)+'</option>').join('');
-  byId('sort').value='';state.sort='';render();
-  if(headers.some(h=>/^(password|username|كلمة.?المرور|اسم.?المستخدم)$/i.test(normalize(h)))) notice('تحذير: يحتوي المصدر المنشور على حقول بيانات دخول. حتى مع إخفائها من هذه الواجهة فهي متاحة في الرابط العام؛ أوقف نشرها وغيّر كلمات المرور.');
-  else if(safe.length===0)notice('تم الوصول للمصدر، لكن لا توجد أعمدة عامة مناسبة للعرض.');
-  else if(table.length>5001)notice('يعرض الموقع أول 5000 سجل من المصدر لحماية سرعة المتصفح.');
- }catch(err){state.ready=false;state.columns=[];state.rows=[];byId('count').textContent='—';byId('columns').textContent='—';byId('status').textContent='تعذر الاتصال';
-  byId('tableRegion').innerHTML='<div class="empty">تعذر قراءة المصدر من المتصفح. قد يكون رابط النشر غير متاح، أو يمنع المتصفح طلبات CORS المباشرة. افتح المصدر من الرابط أدناه للتأكد، ولا تستخدم وسيطًا غير موثوق يعرض كلمات المرور.</div>';
-  notice('تعذر جلب CSV مباشرة: '+err.message+'. لا توجد خدمة أو رابط احتياطي في هذه النسخة.');
- }finally{byId('reload').disabled=false;}
-}
-byId('reload').addEventListener('click',reload);
-byId('search').addEventListener('input',render);
-byId('sort').addEventListener('change',e=>{state.sort=e.target.value;render();});
-byId('field').addEventListener('change',e=>{state.field=e.target.value;render();});
-byId('export').addEventListener('click',downloadSafeCsv);
-byId('sourceLink').href=CSV_URL;
-reload();
-// Refresh from the same CSV every five minutes while this page is visible.
-setInterval(()=>{if(document.visibilityState==='visible'&&!byId('reload').disabled)reload();},300000);
+function csvSafeCell(v){let text=String(v??'');if(/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"'}
+function saveCSV(columns,rows,name){const content='\ufeff'+[columns.map(csvSafeCell).join(','),...rows.map(r=>columns.map(k=>csvSafeCell(r[k])).join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`MILO_${name}_${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),8000)}
+let tableRequest=0;
+async function loadTable(name,id){const reqId=++tableRequest;$('tableMount').innerHTML=skel();$('exportBtn').disabled=true;try{const params=new URLSearchParams({name,page:String(state.pageNum),perPage:'40',q:state.q});const out=await request('/api/table?'+params);if(id!==state.requestId||reqId!==tableRequest)return;
+ const cols=out.columns||[],rows=out.rows||[];
+ $('tableSub').textContent=`${out.total.toLocaleString('en-US')} سجل`;
+ $('rowCount').textContent=`عرض ${rows.length} من أصل ${out.total} سجل`;
+ $('pageIndex').textContent=`${state.pageNum} / ${Math.max(1,Math.ceil(out.total/out.perPage))}`;
+ $('prevPage').disabled=state.pageNum===1;$('nextPage').disabled=state.pageNum*out.perPage>=out.total;
+ $('tableMount').innerHTML=!rows.length?'<div class="empty">لا توجد بيانات مطابقة لهذا الحساب أو البحث.</div>':`<div class="datawrap"><table class="datatable"><thead><tr>${cols.map(c=>`<th>${escapeHtml(pretty[c]||c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td title="${escapeHtml(r[c])}">${escapeHtml(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+ if(rows.length){$('exportBtn').disabled=false;$('exportBtn').onclick=()=>saveCSV(cols,rows,name);}else $('exportBtn').onclick=null;
+ }catch(e){if(id===state.requestId&&reqId===tableRequest){$('tableMount').innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`;toast(e.message,true);setConnection('تعذر التحديث',true)}}}
+$('loginForm').onsubmit=async e=>{e.preventDefault();const u=$('username').value.trim(),p=$('password').value,btn=$('loginBtn');$('loginError').textContent='';btn.disabled=true;btn.classList.add('loading-button');btn.innerHTML='جارٍ التحقق من بياناتك…';try{const r=await request('/api/login',{method:'POST',body:JSON.stringify({username:u,password:p})});$('password').value='';signedIn(r);}catch(err){$('loginError').textContent=err.message;}finally{btn.disabled=false;btn.classList.remove('loading-button');btn.innerHTML='دخول لوحة الإدارة <span>←</span>';}};
+$('togglePass').onclick=()=>{$('password').type=$('password').type==='password'?'text':'password'};
+$('menuBtn').onclick=()=>{$('sidebar').classList.add('open');$('backdrop').classList.remove('hidden')};$('backdrop').onclick=sideClose;
+$('logoutSide').onclick=()=>logout();$('reloadBtn').onclick=()=>go(state.page);
+document.addEventListener('click',e=>{const t=e.target.closest('[data-page]');if(t){go(t.dataset.page);return}if(e.target.closest('[data-menu]')){$('menuBtn').click()}});
+if(state.token){$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('sidebarStore').textContent=state.name;$('sidebarUser').textContent=state.user;loadMenus();go('dashboard')}else{$('loginView').classList.remove('hidden')}
